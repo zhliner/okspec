@@ -142,6 +142,30 @@ rules: ["not", "an", "object"]
         );
       });
 
+      it('should handle rules: null without aborting config parsing', () => {
+        // YAML `rules:` with no value parses to null
+        const configDir = path.join(tempDir, 'openspec');
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.writeFileSync(
+          path.join(configDir, 'config.yaml'),
+          `schema: spec-driven
+context: Valid context
+rules:
+`
+        );
+
+        const config = readProjectConfig(tempDir);
+
+        // Should still parse schema and context despite null rules
+        expect(config).toEqual({
+          schema: 'spec-driven',
+          context: 'Valid context',
+        });
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Invalid 'rules' field")
+        );
+      });
+
       it('should filter out invalid rules for specific artifact', () => {
         const configDir = path.join(tempDir, 'openspec');
         fs.mkdirSync(configDir, { recursive: true });
@@ -350,7 +374,7 @@ context: |
         );
         fs.writeFileSync(
           path.join(configDir, 'config.yml'),
-          'schema: tdd\ncontext: from yml\n'
+          'schema: custom-schema\ncontext: from yml\n'
         );
 
         const config = readProjectConfig(tempDir);
@@ -364,12 +388,12 @@ context: |
         fs.mkdirSync(configDir, { recursive: true });
         fs.writeFileSync(
           path.join(configDir, 'config.yml'),
-          'schema: tdd\ncontext: from yml\n'
+          'schema: custom-schema\ncontext: from yml\n'
         );
 
         const config = readProjectConfig(tempDir);
 
-        expect(config?.schema).toBe('tdd');
+        expect(config?.schema).toBe('custom-schema');
         expect(config?.context).toBe('from yml');
       });
 
@@ -514,7 +538,6 @@ rules:
   describe('suggestSchemas', () => {
     const availableSchemas = [
       { name: 'spec-driven', isBuiltIn: true },
-      { name: 'tdd', isBuiltIn: true },
       { name: 'custom-workflow', isBuiltIn: false },
       { name: 'team-process', isBuiltIn: false },
     ];
@@ -527,29 +550,28 @@ rules:
       expect(message).toContain('spec-driven (built-in)');
     });
 
-    it('should suggest tdd for tdd typo', () => {
-      const message = suggestSchemas('td', availableSchemas);
+    it('should suggest custom-workflow for workflow typo', () => {
+      const message = suggestSchemas('custom-workflo', availableSchemas);
 
       expect(message).toContain('Did you mean one of these?');
-      expect(message).toContain('tdd (built-in)');
+      expect(message).toContain('custom-workflow');
     });
 
     it('should list all available schemas', () => {
       const message = suggestSchemas('nonexistent', availableSchemas);
 
       expect(message).toContain('Available schemas:');
-      expect(message).toContain('Built-in: spec-driven, tdd');
+      expect(message).toContain('Built-in: spec-driven');
       expect(message).toContain('Project-local: custom-workflow, team-process');
     });
 
     it('should handle case when no project-local schemas exist', () => {
       const builtInOnly = [
         { name: 'spec-driven', isBuiltIn: true },
-        { name: 'tdd', isBuiltIn: true },
       ];
       const message = suggestSchemas('invalid', builtInOnly);
 
-      expect(message).toContain('Built-in: spec-driven, tdd');
+      expect(message).toContain('Built-in: spec-driven');
       expect(message).toContain('Project-local: (none found)');
     });
 
